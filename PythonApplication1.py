@@ -18,40 +18,34 @@ analyze_url = vision_base_url + "describe"
 maxConnection=2
 
 #init
-conn=0
 target=[]
 tasks = []
 image_path='./'
 dirs = os.listdir(image_path)
 query = args.q
 print("query: ",query)
+conn = aiohttp.TCPConnector(limit=maxConnection)
 
-async def GetImInfo(image_path):
+async def GetImInfo(image_path,session):
     image_data = open(image_path, "rb").read()
     headers = {'Ocp-Apim-Subscription-Key': subscription_key,
                 'Content-Type': 'application/octet-stream'}
     params = {'visualFeatures': 'Categories,Description,Color'}
-
-    async with aiohttp.request(method='post',url=analyze_url,headers=headers,params=params,data=image_data) as r:
+    async with session.post(analyze_url,headers=headers,params=params,data=image_data) as r:
         analysis = await r.json()
     print(analysis["description"]["tags"])
     if query in analysis["description"]["tags"]:
         target.append(image_path)
-event_loop = asyncio.get_event_loop()
+
+session=aiohttp.ClientSession(connector=conn)
 for img in dirs:
-    if os.path.splitext(img)[1] in [".jpeg",".jpg",".png"]:
-        path = image_path + img
-        conn=conn+1
-        if conn > maxConnection:
-            event_loop.run_until_complete(asyncio.gather(*tasks))
-            asyncio.sleep(1)
-            tasks=[]
-            conn=0
-        #print(path)
-        tasks.append(GetImInfo(path))
+        if os.path.splitext(img)[1] in [".jpeg",".jpg",".png"]:
+            path = image_path + img
+            #print(path)
+            tasks.append(GetImInfo(path,session))
 
-
+event_loop = asyncio.get_event_loop()
 event_loop.run_until_complete(asyncio.gather(*tasks))
 event_loop.close()
-
+session.close()
 print(target)
